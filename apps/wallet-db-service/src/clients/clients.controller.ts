@@ -3,6 +3,8 @@ import { ClientsService } from './clients.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
 import { RechargeWalletDto } from './dto/recharge-wallet.dto';
+import { InitiatePaymentDto } from './dto/initiate-payment.dto';
+import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 
 @Controller('clients')
 export class ClientsController {
@@ -16,5 +18,19 @@ export class ClientsController {
   @Post('recharge')
   async recharge(@Body() dto: RechargeWalletDto): Promise<ApiResponseDto> {
     return this.clientsService.rechargeWallet(dto);
+  }
+
+  @Post('payment/initiate')
+  async initiatePayment(
+    @Body() dto: InitiatePaymentDto,
+  ): Promise<ApiResponseDto> {
+    return this.clientsService.initiatePayment(dto);
+  }
+
+  @Post('payment/confirm')
+  async confirmPayment(
+    @Body() dto: ConfirmPaymentDto,
+  ): Promise<ApiResponseDto> {
+    return this.clientsService.confirmPayment(dto);
   }
 }
