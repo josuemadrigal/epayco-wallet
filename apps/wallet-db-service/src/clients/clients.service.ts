@@ -6,6 +6,7 @@ import { RechargeWalletDto } from './dto/recharge-wallet.dto';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { CheckBalanceDto } from './dto/check-balance.dto';
 
 @Injectable()
 export class ClientsService {
@@ -231,6 +232,34 @@ export class ClientsService {
       return ApiResponseDto.error(
         `Error al confirmar el pago: ${error.message}`,
         'PAYMENT_CONFIRM_ERROR',
+      );
+    }
+  }
+
+  async checkBalance(dto: CheckBalanceDto): Promise<ApiResponseDto> {
+    try {
+      const client = await this.prisma.client.findFirst({
+        where: {
+          documento: dto.documento,
+          celular: dto.celular,
+        },
+      });
+
+      if (!client) {
+        return ApiResponseDto.error(
+          'Cliente no encontrado o datos incorrectos',
+          'CLIENT_NOT_FOUND',
+        );
+      }
+
+      return ApiResponseDto.success('Consulta exitosa', {
+        nombres: client.nombres,
+        saldo: client.saldo,
+      });
+    } catch (error) {
+      return ApiResponseDto.error(
+        `Error al consultar el saldo: ${error.message}`,
+        'BALANCE_CHECK_ERROR',
       );
     }
   }
