@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id           Int           @id @default(autoincrement())
+  documento    String        @unique
+  nombres      String
+  email        String        @unique
+  celular      String
+  saldo        Decimal       @default(0) @db.Decimal(10, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+
+  @@map("clients")
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  tipo        String   // 'recarga' | 'compra'
+  monto       Decimal  @db.Decimal(10, 2)
+  estado      String   // 'pendiente' | 'completada' | 'fallida'
+  sessionId   String?  @unique
+  token       String?
+  tokenExpira DateTime?
+  createdAt   DateTime @default(now())
+  
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("transactions")
+}
