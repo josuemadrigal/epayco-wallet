@@ -1,20 +1,36 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { RegisterClientDto } from './dto/register-client.dto';
-import { ApiResponseDto } from '../common/dto/api-response.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { RechargeWalletDto } from './dto/recharge-wallet.dto';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
-import { v4 as uuidv4 } from 'uuid';
 import { CheckBalanceDto } from './dto/check-balance.dto';
+import { ApiResponseDto } from '../common/dto/api-response.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ClientsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
+
+  private generateToken(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  private validateAmount(amount: number): void {
+    if (amount <= 0) {
+      throw new BadRequestException('El monto debe ser mayor a 0');
+    }
+    if (amount > 10000000) {
+      throw new BadRequestException('El monto excede el límite permitido');
+    }
+  }
 
   async registerClient(dto: RegisterClientDto): Promise<ApiResponseDto> {
     try {
-      // Verificar si ya existe el cliente
       const existingClient = await this.prisma.client.findFirst({
         where: {
           OR: [{ documento: dto.documento }, { email: dto.email }],
@@ -28,7 +44,6 @@ export class ClientsService {
         );
       }
 
-      // Crear el cliente
       const client = await this.prisma.client.create({
         data: {
           documento: dto.documento,
@@ -37,6 +52,13 @@ export class ClientsService {
           celular: dto.celular,
         },
       });
+
+      // Enviar email de bienvenida (opcional, no bloquea el registro)
+      this.emailService
+        .sendWelcomeEmail(client.email, client.nombres)
+        .catch((error) =>
+          console.error('Error enviando email de bienvenida:', error),
+        );
 
       return ApiResponseDto.success('Cliente registrado exitosamente', {
         id: client.id,
@@ -53,8 +75,9 @@ export class ClientsService {
   }
 
   async rechargeWallet(dto: RechargeWalletDto): Promise<ApiResponseDto> {
+    this.validateAmount(dto.valor);
+
     try {
-      // Buscar cliente
       const client = await this.prisma.client.findFirst({
         where: {
           documento: dto.documento,
@@ -69,7 +92,6 @@ export class ClientsService {
         );
       }
 
-      // Actualizar saldo y crear transacción
       const [updatedClient] = await this.prisma.$transaction([
         this.prisma.client.update({
           where: { id: client.id },
@@ -89,6 +111,18 @@ export class ClientsService {
         }),
       ]);
 
+      // Enviar email de confirmación de recarga
+      this.emailService
+        .sendRechargeConfirmation(
+          client.email,
+          client.nombres,
+          dto.valor,
+          Number(updatedClient.saldo),
+        )
+        .catch((error) =>
+          console.error('Error enviando email de recarga:', error),
+        );
+
       return ApiResponseDto.success('Recarga exitosa', {
         nuevoSaldo: updatedClient.saldo,
       });
@@ -100,13 +134,10 @@ export class ClientsService {
     }
   }
 
-  private generateToken(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  }
-
   async initiatePayment(dto: InitiatePaymentDto): Promise<ApiResponseDto> {
+    this.validateAmount(dto.valor);
+
     try {
-      // Buscar cliente
       const client = await this.prisma.client.findFirst({
         where: {
           documento: dto.documento,
@@ -121,7 +152,6 @@ export class ClientsService {
         );
       }
 
-      // Verificar saldo suficiente
       if (Number(client.saldo) < dto.valor) {
         return ApiResponseDto.error(
           'Saldo insuficiente',
@@ -129,13 +159,11 @@ export class ClientsService {
         );
       }
 
-      // Generar token y session ID
       const token = this.generateToken();
       const sessionId = uuidv4();
       const tokenExpira = new Date();
-      tokenExpira.setMinutes(tokenExpira.getMinutes() + 10); // Token válido por 10 minutos
+      tokenExpira.setMinutes(tokenExpira.getMinutes() + 10);
 
-      // Crear transacción pendiente
       await this.prisma.transaction.create({
         data: {
           clientId: client.id,
@@ -148,8 +176,26 @@ export class ClientsService {
         },
       });
 
-      // Aquí deberías enviar el email con el token
-      console.log(`📧 Token para ${client.email}: ${token}`);
+      // Enviar email con el token
+      const emailSent = await this.emailService.sendPaymentToken(
+        client.email,
+        client.nombres,
+        token,
+        dto.valor,
+      );
+
+      if (!emailSent) {
+        // Si falla el envío del email, aún mostramos el token en consola como fallback
+        console.log(`📧 Token para ${client.email}: ${token}`);
+        return ApiResponseDto.success(
+          'Token generado. NOTA: Hubo un problema al enviar el email. Revisa la consola del servidor.',
+          {
+            sessionId,
+            email: client.email,
+            tokenFallback: token, // Solo en desarrollo
+          },
+        );
+      }
 
       return ApiResponseDto.success(
         'Se ha enviado un token de confirmación a tu email',
@@ -159,8 +205,9 @@ export class ClientsService {
         },
       );
     } catch (error) {
+      console.error('Error en initiatePayment:', error);
       return ApiResponseDto.error(
-        `Error al iniciar el pago: ${error.message}`,
+        'Error al iniciar el pago',
         'PAYMENT_INIT_ERROR',
       );
     }
@@ -168,7 +215,6 @@ export class ClientsService {
 
   async confirmPayment(dto: ConfirmPaymentDto): Promise<ApiResponseDto> {
     try {
-      // Buscar la transacción
       const transaction = await this.prisma.transaction.findUnique({
         where: {
           sessionId: dto.sessionId,
@@ -185,7 +231,6 @@ export class ClientsService {
         );
       }
 
-      // Verificar si ya fue procesada
       if (transaction.estado !== 'pendiente') {
         return ApiResponseDto.error(
           'Esta transacción ya fue procesada',
@@ -193,22 +238,45 @@ export class ClientsService {
         );
       }
 
-      // Verificar si el token expiró
       if (!transaction.tokenExpira || new Date() > transaction.tokenExpira) {
         await this.prisma.transaction.update({
           where: { id: transaction.id },
           data: { estado: 'fallida' },
         });
 
+        // Enviar email de pago fallido (token expirado)
+        this.emailService
+          .sendPaymentConfirmation(
+            transaction.client.email,
+            transaction.client.nombres,
+            Number(transaction.monto),
+            Number(transaction.client.saldo),
+            false,
+          )
+          .catch((error) =>
+            console.error('Error enviando email de pago fallido:', error),
+          );
+
         return ApiResponseDto.error('El token ha expirado', 'TOKEN_EXPIRED');
       }
 
-      // Verificar el token
       if (transaction.token !== dto.token) {
+        // Enviar email de pago fallido (token inválido)
+        this.emailService
+          .sendPaymentConfirmation(
+            transaction.client.email,
+            transaction.client.nombres,
+            Number(transaction.monto),
+            Number(transaction.client.saldo),
+            false,
+          )
+          .catch((error) =>
+            console.error('Error enviando email de pago fallido:', error),
+          );
+
         return ApiResponseDto.error('Token inválido', 'INVALID_TOKEN');
       }
 
-      // Descontar saldo y actualizar transacción
       const [updatedClient] = await this.prisma.$transaction([
         this.prisma.client.update({
           where: { id: transaction.clientId },
@@ -223,6 +291,19 @@ export class ClientsService {
           data: { estado: 'completada' },
         }),
       ]);
+
+      // Enviar email de pago exitoso
+      this.emailService
+        .sendPaymentConfirmation(
+          transaction.client.email,
+          transaction.client.nombres,
+          Number(transaction.monto),
+          Number(updatedClient.saldo),
+          true,
+        )
+        .catch((error) =>
+          console.error('Error enviando email de pago exitoso:', error),
+        );
 
       return ApiResponseDto.success('Pago realizado exitosamente', {
         nuevoSaldo: updatedClient.saldo,
