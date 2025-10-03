@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",
+    "axios": "^1.12.2",
     "lucide-react": "^0.544.0",
     "process": "^0.11.10",
     "react": "^18.2.0",
