@@ -123,8 +123,6 @@ epayco-wallet/
 │   ├── wallet-db-service/     # Servicio de base de datos (Prisma + NestJS)
 │   ├── wallet-api-service/    # API pública (NestJS)
 │   └── wallet-client/         # Cliente web (React + Vite + Tailwind)
-│
-├── prisma/                    # Esquema y migraciones de base de datos
 └── README.md                  # Documentación del proyecto
 ```
 
