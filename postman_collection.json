@@ -1,0 +1,129 @@
+{
+  "info": {
+    "name": "ecoWallet API",
+    "description": "Colección completa de endpoints para la billetera virtual prueba tecnica para ePayco",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Registro de Cliente",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documento\": \"1234567890\",\n  \"nombres\": \"Juan Pérez\",\n  \"email\": \"juan@email.com\",\n  \"celular\": \"3001234567\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/clients/register",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "clients", "register"]
+        },
+        "description": "Registra un nuevo cliente en el sistema. Todos los campos son requeridos."
+      }
+    },
+    {
+      "name": "2. Recargar Billetera",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documento\": \"1234567890\",\n  \"celular\": \"3001234567\",\n  \"valor\": 50000\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/clients/recharge",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "clients", "recharge"]
+        },
+        "description": "Recarga saldo a la billetera de un cliente. El documento y celular deben coincidir con un cliente registrado."
+      }
+    },
+    {
+      "name": "3. Iniciar Pago",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documento\": \"1234567890\",\n  \"celular\": \"3001234567\",\n  \"valor\": 25000\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/clients/payment/initiate",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "clients", "payment", "initiate"]
+        },
+        "description": "Inicia un proceso de pago. Genera un token de 6 dígitos y un sessionId. El token se envia al email del usuario."
+      }
+    },
+    {
+      "name": "4. Confirmar Pago",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"uuid-generado-en-paso-anterior\",\n  \"token\": \"123456\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/clients/payment/confirm",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "clients", "payment", "confirm"]
+        },
+        "description": "Confirma un pago usando el sessionId y el token de 6 dígitos. Si es correcto, descuenta el saldo de la billetera."
+      }
+    },
+    {
+      "name": "5. Consultar Saldo",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documento\": \"1234567890\",\n  \"celular\": \"3001234567\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/clients/balance",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "clients", "balance"]
+        },
+        "description": "Consulta el saldo disponible de una billetera. El documento y celular deben coincidir."
+      }
+    }
+  ]
+}
